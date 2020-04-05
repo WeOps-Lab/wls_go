@@ -1,0 +1,38 @@
+# Config contains appropriate label_names and label_value_attributes.
+---
+mbeans:
+    label_name: server
+    label_value_attribute: name
+    children:
+        JVMRuntime:
+            metric_prefix: wls_jvm_
+            fields: [heapFreeCurrent, heapFreePercent, heapSizeCurrent]
+        applicationRuntimes:
+            label_name: application_runtime
+            label_value_attribute: name
+            children:
+                componentRuntimes:
+                    metric_prefix: wls_webapp_
+                    label_name: component_runtime
+                    label_value_attribute: name
+                    fields: [deploymentState, sessionsOpenedTotalCount ]
+                    children:
+                        servlets:
+                          metric_prefix: wls_servlet_
+                          label_name: servlet
+                          label_value_attribute: servletName
+                          fields: [ invocationTotalCount, executionTimeAverage, executionTimeHigh, executionTimeTotal ]
+        JDBCServiceRuntime:
+            label_name: jdbc_service
+            label_value_attribute: name
+            children:
+                JDBCDataSourceRuntimeMBeans:
+                    metric_prefix: wls_datasource_
+                    label_value_attribute: name
+                    label_name: datasource
+                    fields: [ connectionsTotalCount, deploymentState, currCapacity ]
+        threadPoolRuntime:
+            label_name: threadpool
+            label_value_attribute: name
+            metric_prefix: wls_threadpool_
+            fields: [ stuckThreadCount ]

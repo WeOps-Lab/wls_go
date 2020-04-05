@@ -1,0 +1,7 @@
+mbeans:
+    label_name: server
+    label_value_attribute: name
+    fields: ['healthState']
+    children:
+      JVMRuntime:
+        fields: [heapFreeCurrent]
