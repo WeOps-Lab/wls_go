@@ -77,7 +77,7 @@ func probeHandler(resp http.ResponseWriter, req *http.Request, e *exporter.Expor
 	}
 
 	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_success",
+		Name: "weblogic_probe_success",
 		Help: "Displays whether or not the probe was a success",
 	})
 	registry := prometheus.NewRegistry()

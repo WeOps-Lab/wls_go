@@ -358,6 +358,7 @@ func (e *Exporter) createMBeanMetrics(beanName string, resp *WeblogicAPIResponse
 		}
 		metrics = append(metrics, itemMetrics...)
 	}
+
 	for childName, child := range resp.Children {
 		childMetrics, err := e.createMBeanMetrics(childName, child, fieldLabels)
 		if err != nil {
