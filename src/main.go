@@ -15,7 +15,10 @@ import (
 
 // Config represents the main application config
 type Config struct {
-	Queries exporter.MbeanQuery `yaml:"queries"`
+	CertPath   string              `yaml:"tls_cert_path"` // Certificate used for TLS, should include CA chain if its signed.
+	Keypath    string              `yaml:"tls_key_path"`  // Private Key used for TLS
+	ListenPort string              `yaml:"listen_port"`   // Port used to listen for scrape requests
+	Queries    exporter.MbeanQuery `yaml:"queries"`       // Queries of mBeans the exporter tries to scrape
 }
 
 func main() {
@@ -33,6 +36,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if config.ListenPort == "" {
+		config.ListenPort = "9325"
+	}
+
 	exporter, err := exporter.New(config.Queries)
 	if err != nil {
 		log.Fatalf("Unable to start exporter: %s", err.Error())
@@ -41,7 +48,12 @@ func main() {
 	http.HandleFunc("/probe", func(resp http.ResponseWriter, req *http.Request) {
 		probeHandler(resp, req, &exporter)
 	})
-	log.Fatal(http.ListenAndServe(":9235", nil))
+
+	if config.CertPath != "" {
+		log.Fatal(http.ListenAndServeTLS(":"+config.ListenPort, config.CertPath, config.Keypath, nil))
+	} else {
+		log.Fatal(http.ListenAndServe(":"+config.ListenPort, nil))
+	}
 }
 
 func probeHandler(resp http.ResponseWriter, req *http.Request, e *exporter.Exporter) {
