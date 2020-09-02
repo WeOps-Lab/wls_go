@@ -1,0 +1,13 @@
+[Unit]
+Description=A Prometheus Exporter for Weblogic Server
+Wants=network.target
+
+[Service]
+ExecStart=/opt/weblogic_exporter/weblogic_exporter
+WorkingDirectory=/opt/weblogic_exporter
+User=weblogic_exporter
+ProtectSystem=full
+ProtectHome=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
