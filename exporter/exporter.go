@@ -18,6 +18,7 @@ import (
 Exporter is the overarching type that contains the configuration and client required to perform
 lookups against the Weblogic API
 */
+
 type Exporter struct {
 	queryConfig MbeanQuery
 	configMap   MBeanConfigMap   // A map of the form <mBeanName, mBeanConfig> for mapping mbeans to labels and metric prefixes
@@ -27,9 +28,10 @@ type Exporter struct {
 
 // MBeanConfig contains the data from config needed to create prometheus metrics from raw mBean data
 type MBeanConfig struct {
-	LabelName           string // The label to use for this mBean when converting to Prometheus metrics
-	LabelValueAttribute string // Which attribute of the mBean to use as the label's value
-	MetricPrefix        string // An optional prefix to add to the resultant metrics for organising metrics
+	LabelName           string          // The label to use for this mBean when converting to Prometheus metrics
+	LabelValueAttribute string          // Which attribute of the mBean to use as the label's value
+	MetricPrefix        string          // An optional prefix to add to the resultant metrics for organising metrics
+	StringFieldInfo     stringFieldInfo // A set that contains mBean attributes which return strings. Used to enumerate all possible labels and provide consistent metrics
 }
 
 // MBeanConfigMap is a map of the form <MbeanName, MBeanConfig> so the exporter knows which labels and prefixes to use
@@ -48,17 +50,35 @@ type WeblogicAPIResponse struct {
 }
 
 /*
+StringField represents a field from a Weblogic mBean that returns a string value.
+The value set should contain all possible string values that can be returned by the
+field so that the exporter can populate all possible labels and provide clean time
+series metrics. It's not intended to retrieve arbitrary strings, but rather things
+like health states and deployment states that have known potential values.
+*/
+type StringField struct {
+	Name     string   `yaml:"name,omitempty"`
+	ValueSet []string `yaml:"value_set,omitempty"`
+}
+
+// stringFieldInfo represnts the possible states of a string mBean attribute, converted from StringFields found in config.
+// Used a set with labels set to true to indicate their presence.
+type stringFieldInfo map[string]map[string]bool
+
+/*
 MbeanQuery is the configuration for each desired mbean.
 LabelName: This is an optional field that determines the name of the label on the outgoing metric
 LabelValueAttribute: Which mbean attribute should be queried for the LabelName value
-Fields: Desired attributes to be exported as metrics
+Fields: Desired attirbutes that return numerical data
+StringFields: Desired attributes that return a string. These will be converted to labels with 1 as the current state, 0 as other states.
 Children: Child mbeans to also be queried
 */
 type MbeanQuery struct {
 	LabelName           string                `yaml:"label_name,omitempty"`
 	LabelValueAttribute string                `yaml:"label_value_attribute,omitempty"`
 	MetricPrefix        string                `yaml:"metric_prefix,omitempty"`
-	Fields              []string              `yaml:"fields"`
+	Fields              []string              `yaml:"fields,omitempty"`
+	StringFields        []StringField         `yaml:"string_fields,omitempty"`
 	Children            map[string]MbeanQuery `yaml:"children,omitempty"`
 }
 
@@ -68,8 +88,15 @@ func (cm MBeanConfigMap) createConfigMap(beanName string, q *MbeanQuery) {
 		LabelName:           q.LabelName,
 		LabelValueAttribute: q.LabelValueAttribute,
 		MetricPrefix:        q.MetricPrefix,
+		StringFieldInfo:     make(stringFieldInfo),
 	}
 	cm[beanName] = beanConfig
+	for _, stringField := range q.StringFields {
+		beanConfig.StringFieldInfo[stringField.Name] = make(map[string]bool)
+		for _, value := range stringField.ValueSet {
+			beanConfig.StringFieldInfo[stringField.Name][value] = true
+		}
+	}
 	if q.Children == nil {
 		return
 	}
@@ -96,6 +123,7 @@ func New(q MbeanQuery) (Exporter, error) {
 	}, nil
 }
 
+// UnmarshalYAML implements the yaml.Unmarshaler interface for MbeanQuery
 func (q *MbeanQuery) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Create a type alias to avoid infinite recursion
 	type queryYAML MbeanQuery
@@ -129,10 +157,13 @@ func (q *MbeanQuery) getRESTQuery() wls.WLSRestQuery {
 		children[name] = &q
 	}
 
-	// Return empty array if fields isn't set, otherwise WLS api returns all fields.
+	// Set empty array if fields isn't set, otherwise WLS api returns all fields.
 	var fields []string
-	if len(q.Fields) != 0 {
+	if len(q.Fields)+len(q.StringFields) != 0 {
 		fields = q.Fields
+		for _, stringField := range q.StringFields {
+			fields = append(fields, stringField.Name)
+		}
 	} else {
 		fields = []string{}
 	}
@@ -289,6 +320,7 @@ func stringInSlice(a string, list []string) bool {
 CreateMetrics uses an exporter to create metrics from a Weblogic API reseponse
 */
 func (e *Exporter) CreateMetrics(resp *WeblogicAPIResponse) (metrics []prometheus.Gauge, err error) {
+	// Start at serverRuntime, which is the root node of Weblogic's runtime mBean tree.
 	serverMetrics, err := e.createMBeanMetrics("serverRuntime", resp, nil)
 	if err != nil {
 		return nil, err
@@ -298,31 +330,54 @@ func (e *Exporter) CreateMetrics(resp *WeblogicAPIResponse) (metrics []prometheu
 
 /*
 CreateMBeanMetrics creates a series of Prometheus metrics from an mBean name, a set of labels, and an API response that contains
-the metrics for that mBean. It also recursively creates child metrics
+the metrics for that mBean. It also recursively creates child metrics.
 */
 func (e *Exporter) createMBeanMetrics(beanName string, resp *WeblogicAPIResponse, labels prometheus.Labels) (metrics []prometheus.Gauge, err error) {
 	metricConfig, ok := e.configMap[beanName]
 	if !ok {
 		return nil, fmt.Errorf("Unable to find monitoring config for mBean %s", beanName)
 	}
-	fieldLabels := make(prometheus.Labels)
+	beanLabels := make(prometheus.Labels)
 	mainLabelValue, ok := resp.StringFields[metricConfig.LabelValueAttribute]
 	if ok {
-		fieldLabels[metricConfig.LabelName] = mainLabelValue
+		beanLabels[metricConfig.LabelName] = mainLabelValue
 	}
 
 	// Add extra labels from parameter
-	copyLabels(fieldLabels, labels)
+	copyLabels(beanLabels, labels)
 
 	metrics = make([]prometheus.Gauge, 0, len(resp.NumericalFields))
 
 	for fieldName, fieldValue := range resp.NumericalFields {
 		gauge := prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        metricConfig.MetricPrefix + strcase.ToSnake(fieldName),
-			ConstLabels: fieldLabels,
+			ConstLabels: beanLabels,
 		})
 		gauge.Set(fieldValue)
 		metrics = append(metrics, gauge)
+	}
+
+	// Create string label metrics. These are similar to systemd metrics in the Node Exporter where all states are enumerated with different labels
+	for fieldName, potentialValues := range metricConfig.StringFieldInfo {
+		if responseValue, ok := resp.StringFields[fieldName]; ok {
+			// Create metrics that represent all the possible string responses set as labels
+			fieldLabels := make(prometheus.Labels)
+			copyLabels(fieldLabels, beanLabels)
+			labelName := strcase.ToSnake(fieldName)
+			for potentialValue := range potentialValues {
+				fieldLabels[labelName] = potentialValue
+				gauge := prometheus.NewGauge(prometheus.GaugeOpts{
+					Name:        metricConfig.MetricPrefix + strcase.ToSnake(fieldName),
+					ConstLabels: fieldLabels,
+				})
+				if potentialValue == responseValue {
+					gauge.Set(1)
+				} else {
+					gauge.Set(0)
+				}
+				metrics = append(metrics, gauge)
+			}
+		}
 	}
 
 	// Handle healthstate metrics, which have standard string outputs that can be
@@ -334,7 +389,7 @@ func (e *Exporter) createMBeanMetrics(beanName string, resp *WeblogicAPIResponse
 		states := []string{"ok", "overloaded", "warn", "critical", "failed"}
 		for _, s := range states {
 			stateLabels := prometheus.Labels{}
-			copyLabels(stateLabels, fieldLabels)
+			copyLabels(stateLabels, beanLabels)
 			stateLabels["state"] = s
 			gauge := prometheus.NewGauge(prometheus.GaugeOpts{
 				Name:        metricConfig.MetricPrefix + "health_state",
@@ -351,7 +406,7 @@ func (e *Exporter) createMBeanMetrics(beanName string, resp *WeblogicAPIResponse
 
 	// Recursively create child metrics
 	for _, item := range resp.Items {
-		itemMetrics, err := e.createMBeanMetrics(beanName, item, fieldLabels)
+		itemMetrics, err := e.createMBeanMetrics(beanName, item, beanLabels)
 		if err != nil {
 			return nil, err
 		}
@@ -359,7 +414,7 @@ func (e *Exporter) createMBeanMetrics(beanName string, resp *WeblogicAPIResponse
 	}
 
 	for childName, child := range resp.Children {
-		childMetrics, err := e.createMBeanMetrics(childName, child, fieldLabels)
+		childMetrics, err := e.createMBeanMetrics(childName, child, beanLabels)
 		if err != nil {
 			return nil, err
 		}

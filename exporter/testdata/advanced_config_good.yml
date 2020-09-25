@@ -31,6 +31,14 @@ mbeans:
                     label_value_attribute: name
                     label_name: datasource
                     fields: [ connectionsTotalCount, deploymentState, currCapacity ]
+                    string_fields:
+                        - name: state
+                          value_set:
+                            - Running
+                            - Suspended
+                            - Shutdown
+                            - Overloaded
+                            - Unknown
         threadPoolRuntime:
             label_name: threadpool
             label_value_attribute: name
