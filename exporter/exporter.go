@@ -176,7 +176,6 @@ func (e *Exporter) DoQuery(host string, port int, username, password string) ([]
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
-	print(string(body))
 	if err != nil {
 		return nil, err
 	}

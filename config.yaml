@@ -1,8 +1,8 @@
 # Config contains appropriate label_names and label_value_attributes.
 ---
-listen_port: 8888
-tls_cert_path: server.crt
-tls_key_path: server.key
+listen_port: 8443
+# tls_cert_path: server.crt
+# tls_key_path: server.key
 queries:
     label_name: server
     label_value_attribute: name
