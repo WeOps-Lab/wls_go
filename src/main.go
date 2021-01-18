@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/benridley/wls_go/exporter"
 	"github.com/prometheus/client_golang/prometheus"
@@ -21,13 +22,29 @@ type Config struct {
 	Queries    exporter.MbeanQuery `yaml:"queries"`       // Queries of mBeans the exporter tries to scrape
 }
 
+// Available log levels
+const (
+	LOG_INFO = iota
+	LOG_DEBUG
+)
+
 func main() {
 	configPath := flag.String("config-file", "config.yaml", "Configuration file path")
+	logLevelConfig := flag.String("log-level", "info", "Log level to use. Info or Debug.")
 	flag.Parse()
 
 	configBytes, err := ioutil.ReadFile(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to read config file: %s", err.Error())
+	}
+
+	var logLevel int
+	if strings.ToLower(*logLevelConfig) == "info" {
+		logLevel = LOG_INFO
+	} else if strings.ToLower(*logLevelConfig) == "debug" {
+		logLevel = LOG_DEBUG
+	} else {
+		log.Fatalf("Unknown log level %s", *logLevelConfig)
 	}
 
 	config := Config{}
@@ -40,13 +57,15 @@ func main() {
 		config.ListenPort = "9325"
 	}
 
-	exporter, err := exporter.New(config.Queries)
+	e, err := exporter.New(config.Queries, logLevel)
 	if err != nil {
 		log.Fatalf("Unable to start exporter: %s", err.Error())
+	} else {
+		log.Printf("Started exporter on port %s", config.ListenPort)
 	}
 
 	http.HandleFunc("/probe", func(resp http.ResponseWriter, req *http.Request) {
-		probeHandler(resp, req, &exporter)
+		probeHandler(resp, req, &e)
 	})
 
 	if config.CertPath != "" {
@@ -84,7 +103,9 @@ func probeHandler(resp http.ResponseWriter, req *http.Request, e *exporter.Expor
 	metrics, err := e.DoQuery(host, portInt, username, password)
 	if err != nil {
 		probeSuccessGauge.Set(0)
-		log.Printf("Failed to probe weblogic instance %s:%s: %v", host, port, err.Error())
+		if e.LogLevel >= LOG_DEBUG {
+			log.Printf("Failed to probe weblogic instance %s:%s: %v", host, port, err.Error())
+		}
 		registry.MustRegister(probeSuccessGauge)
 	} else {
 		probeSuccessGauge.Set(1)
