@@ -18,12 +18,12 @@ import (
 Exporter is the overarching type that contains the configuration and client required to perform
 lookups against the Weblogic API
 */
+
 type Exporter struct {
 	queryConfig MbeanQuery
 	configMap   MBeanConfigMap   // A map of the form <mBeanName, mBeanConfig> for mapping mbeans to labels and metric prefixes
 	client      http.Client      // The client used to perform the probing against the Weblogic API
 	query       wls.WLSRestQuery // Stores the query required by the exporter to prevent having to recreate it every time
-	LogLevel    int              // Which log level to use, 0 = INFO, 1 = DEBUG
 }
 
 // MBeanConfig contains the data from config needed to create prometheus metrics from raw mBean data
@@ -105,8 +105,8 @@ func (cm MBeanConfigMap) createConfigMap(beanName string, q *MbeanQuery) {
 	}
 }
 
-// New creates an exporter from an MBeanQuery and a log level
-func New(q MbeanQuery, logLevel int) (Exporter, error) {
+// New creates an exporter from an MBeanQuery
+func New(q MbeanQuery) (Exporter, error) {
 	if len(q.Children) == 0 && len(q.Fields) == 0 {
 		return Exporter{}, errors.New("Cannot use empty config. No queries specified")
 	}
@@ -120,7 +120,6 @@ func New(q MbeanQuery, logLevel int) (Exporter, error) {
 		configMap:   configMap,
 		client:      http.Client{Timeout: 10 * time.Second},
 		query:       query,
-		LogLevel:    logLevel,
 	}, nil
 }
 
