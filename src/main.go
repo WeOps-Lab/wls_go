@@ -88,6 +88,7 @@ func probeHandler(resp http.ResponseWriter, req *http.Request, e *exporter.Expor
 		registry.MustRegister(probeSuccessGauge)
 	} else {
 		probeSuccessGauge.Set(1)
+		registry.MustRegister(probeSuccessGauge)
 		for _, metric := range metrics {
 			registry.MustRegister(metric)
 		}
