@@ -21,6 +21,12 @@ type Config struct {
 	Queries    exporter.MbeanQuery `yaml:"queries"`       // Queries of mBeans the exporter tries to scrape
 }
 
+// errorRegistry stores the last seen error for a host/port combo.
+// On a successful scrape, the entry is deleted. If an error occurs
+// that is not in the registry, it will be logged. This ensures errors
+// are only logged once per incident.
+var errorRegistry = make(map[string]error)
+
 func main() {
 	configPath := flag.String("config-file", "config.yaml", "Configuration file path")
 	flag.Parse()
@@ -84,9 +90,21 @@ func probeHandler(resp http.ResponseWriter, req *http.Request, e *exporter.Expor
 	metrics, err := e.DoQuery(host, portInt, username, password)
 	if err != nil {
 		probeSuccessGauge.Set(0)
-		log.Printf("Failed to probe weblogic instance %s:%s: %v", host, port, err.Error())
+		// Check if we've seen this error already while failing scrapes. If not, log it.
+		if lastErr, ok := errorRegistry[(host + port)]; ok {
+			// Seen errors before, but not this one
+			if err != lastErr {
+				log.Printf("Failed to probe weblogic instance %s:%s: %v", host, port, err.Error())
+				errorRegistry[host + port] = err
+			}
+		} else {
+			// No errors seen yet
+			log.Printf("Failed to probe weblogic instance %s:%s: %v", host, port, err.Error())
+			errorRegistry[host + port] = err
+		}
 		registry.MustRegister(probeSuccessGauge)
 	} else {
+		delete(errorRegistry, (host + port))
 		probeSuccessGauge.Set(1)
 		registry.MustRegister(probeSuccessGauge)
 		for _, metric := range metrics {
