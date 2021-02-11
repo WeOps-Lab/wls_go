@@ -26,6 +26,9 @@ type Config struct {
 // up to 3 times before no longer logging.
 var errorRegistry = make(map[string]int)
 
+// Number of times to log an error between successful scrapes.
+const errLogCount = 10
+
 func main() {
 	configPath := flag.String("config-file", "config.yaml", "Configuration file path")
 	flag.Parse()
@@ -91,10 +94,10 @@ func probeHandler(resp http.ResponseWriter, req *http.Request, e *exporter.Expor
 		probeSuccessGauge.Set(0)
 		// Check if we've seen this error already while failing scrapes. If not, log it.
 		if numErrs, ok := errorRegistry[(host + port)]; ok {
-			if numErrs < 3  {
+			if numErrs < errLogCount  {
 				log.Printf("Failed to probe weblogic instance %s:%s: %v", host, port, err.Error())
 				errorRegistry[host + port]++
-				if errorRegistry[host + port] == 3 {
+				if errorRegistry[host + port] == errLogCount {
 					log.Printf("Pausing logging of errors until a successful scrape occurs on %s:%s...", host, port)	
 				}
 			}
