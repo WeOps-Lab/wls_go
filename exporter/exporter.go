@@ -18,7 +18,6 @@ import (
 Exporter is the overarching type that contains the configuration and client required to perform
 lookups against the Weblogic API
 */
-
 type Exporter struct {
 	queryConfig MbeanQuery
 	configMap   MBeanConfigMap   // A map of the form <mBeanName, mBeanConfig> for mapping mbeans to labels and metric prefixes
