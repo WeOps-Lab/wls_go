@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
@@ -13,6 +13,18 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// Config represents the main application config
+type Config struct {
+	Host          string
+	Port          string
+	UserName      string
+	Password      string
+	CertPath      string     `yaml:"tls_cert_path"`  // Certificate used for TLS, should include CA chain if its signed.
+	Keypath       string     `yaml:"tls_key_path"`   // Private Key used for TLS
+	ListenAddress string     `yaml:"listen_address"` // Address used to listen for scrape requests
+	Queries       MbeanQuery `yaml:"queries"`        // Queries of mBeans the exporter tries to scrape
+}
 
 /*
 Exporter is the overarching type that contains the configuration and client required to perform
@@ -23,6 +35,7 @@ type Exporter struct {
 	configMap   MBeanConfigMap   // A map of the form <mBeanName, mBeanConfig> for mapping mbeans to labels and metric prefixes
 	client      http.Client      // The client used to perform the probing against the Weblogic API
 	query       wls.WLSRestQuery // Stores the query required by the exporter to prevent having to recreate it every time
+	Config      Config
 }
 
 // MBeanConfig contains the data from config needed to create prometheus metrics from raw mBean data
@@ -105,7 +118,8 @@ func (cm MBeanConfigMap) createConfigMap(beanName string, q *MbeanQuery) {
 }
 
 // New creates an exporter from an MBeanQuery
-func New(q MbeanQuery) (Exporter, error) {
+func New(c Config) (Exporter, error) {
+	q := c.Queries
 	if len(q.Children) == 0 && len(q.Fields) == 0 {
 		return Exporter{}, errors.New("Cannot use empty config. No queries specified")
 	}
@@ -115,6 +129,7 @@ func New(q MbeanQuery) (Exporter, error) {
 	query := q.getRESTQuery()
 
 	return Exporter{
+		Config:      c,
 		queryConfig: q,
 		configMap:   configMap,
 		client:      http.Client{Timeout: 10 * time.Second},
@@ -205,7 +220,7 @@ func (e *Exporter) DoQuery(host string, port int, username, password string) ([]
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +349,7 @@ the metrics for that mBean. It also recursively creates child metrics.
 func (e *Exporter) createMBeanMetrics(beanName string, resp *WeblogicAPIResponse, labels prometheus.Labels) (metrics []prometheus.Gauge, err error) {
 	metricConfig, ok := e.configMap[beanName]
 	if !ok {
-		return nil, fmt.Errorf("Unable to find monitoring config for mBean %s", beanName)
+		return nil, fmt.Errorf("unable to find monitoring config for mBean %s", beanName)
 	}
 	beanLabels := make(prometheus.Labels)
 	mainLabelValue, ok := resp.StringFields[metricConfig.LabelValueAttribute]

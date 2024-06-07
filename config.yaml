@@ -1,11 +1,12 @@
 # Config contains appropriate label_names and label_value_attributes.
 ---
-listen_port: 8443
 # tls_cert_path: server.crt
 # tls_key_path: server.key
 queries:
     label_name: server
     label_value_attribute: name
+    metric_prefix: wls_server_health_
+    fields: ['healthState']
     children:
         JVMRuntime:
             metric_prefix: wls_jvm_
@@ -18,7 +19,7 @@ queries:
                     metric_prefix: wls_webapp_
                     label_name: component_runtime
                     label_value_attribute: name
-                    fields: [deploymentState, sessionsOpenedTotalCount ]
+                    fields: [deploymentState, sessionsOpenedTotalCount, servletReloadCheckSecs, openSessionsHighCount, openSessionsCurrentCount ]
                     children:
                         servlets:
                             metric_prefix: wls_servlet_
@@ -46,4 +47,4 @@ queries:
             label_name: threadpool
             label_value_attribute: name
             metric_prefix: wls_threadpool_
-            fields: [ stuckThreadCount ]
+            fields: [ stuckThreadCount, throughput ]
