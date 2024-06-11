@@ -34,7 +34,7 @@ queries:
                     metric_prefix: wls_datasource_
                     label_value_attribute: name
                     label_name: datasource
-                    fields: [ connectionsTotalCount, deploymentState, currCapacity ]
+                    fields: [ connectionsTotalCount, deploymentState, currCapacity, waitingForConnectionTotal, numAvailable, numUnavailable, failuresToReconnectCount, connectionDelayTime, activeConnectionsCurrentCount ]
                     string_fields:
                         - name: state
                           value_set:
@@ -47,4 +47,11 @@ queries:
             label_name: threadpool
             label_value_attribute: name
             metric_prefix: wls_threadpool_
-            fields: [ stuckThreadCount, throughput ]
+            fields: [ connectionsTotalCount, connectionsHighCount, connectionsCurrentCount, pendingUserRequestCount, hoggingThreadCount, standbyThreadCount, stuckThreadCount, throughput, queueLength, executeThreadTotalCount, executeThreadIdleCount ]
+
+        JMSRuntime:
+            label_name: JMS
+            label_value_attribute: name
+            metric_prefix: wls_jms_
+            fields: [ connectionsTotalCount, connectionsHighCount, connectionsCurrentCount]
+

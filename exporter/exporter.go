@@ -400,22 +400,31 @@ func (e *Exporter) createMBeanMetrics(beanName string, resp *WeblogicAPIResponse
 		hsw := hs.(map[string]interface{})
 		hsString := hsw["state"].(string)
 
-		states := []string{"ok", "overloaded", "warn", "critical", "failed"}
-		for _, s := range states {
-			stateLabels := prometheus.Labels{}
-			copyLabels(stateLabels, beanLabels)
-			stateLabels["state"] = s
-			gauge := prometheus.NewGauge(prometheus.GaugeOpts{
-				Name:        metricConfig.MetricPrefix + "health_state",
-				ConstLabels: stateLabels,
-			})
-			if s == hsString {
-				gauge.Set(1)
-			} else {
-				gauge.Set(0)
-			}
-			metrics = append(metrics, gauge)
+		stateLabels := prometheus.Labels{}
+		copyLabels(stateLabels, beanLabels)
+		stateLabels["state"] = hsString
+		gauge := prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        metricConfig.MetricPrefix + "health_state",
+			ConstLabels: stateLabels,
+		})
+
+		switch hsString {
+		case "ok":
+			gauge.Set(1)
+		case "overloaded":
+			gauge.Set(2)
+		case "warn":
+			gauge.Set(3)
+		case "critical":
+			gauge.Set(4)
+		case "failed":
+			gauge.Set(5)
+		default:
+			gauge.Set(0)
 		}
+
+		metrics = append(metrics, gauge)
+
 	}
 
 	// Recursively create child metrics
