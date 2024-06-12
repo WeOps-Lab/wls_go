@@ -1,7 +1,7 @@
 # Config contains appropriate label_names and label_value_attributes.
 ---
 queries:
-    label_name: server
+    label_name: server_name
     label_value_attribute: name
     metric_prefix: wls_server_health_
     fields: ['healthState']
