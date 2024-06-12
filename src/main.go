@@ -27,6 +27,8 @@ func main() {
 	listenAddress := flag.String("web.listen-address", ":9601", "Address to listen on for web interface and telemetry.")
 	userName := flag.String("username", getEnv("USERNAME", ""), "Username for Weblogic Server")
 	password := flag.String("password", getEnv("PASSWORD", ""), "Password for Weblogic Server")
+	certPath := flag.String("cert", "", "Cert file path for Weblogic Server")
+	keyPath := flag.String("key", "", "Key file path for Weblogic Server")
 
 	flag.Parse()
 
@@ -46,6 +48,8 @@ func main() {
 		ListenAddress: *listenAddress,
 		UserName:      *userName,
 		Password:      *password,
+		CertPath:      *certPath,
+		KeyPath:       *keyPath,
 	}
 	err = yaml.Unmarshal(configBytes, &config)
 	if err != nil {
@@ -62,7 +66,7 @@ func main() {
 	})
 
 	if config.CertPath != "" {
-		log.Fatal(http.ListenAndServeTLS(config.ListenAddress, config.CertPath, config.Keypath, nil))
+		log.Fatal(http.ListenAndServeTLS(config.ListenAddress, config.CertPath, config.KeyPath, nil))
 	} else {
 		log.Fatal(http.ListenAndServe(config.ListenAddress, nil))
 	}

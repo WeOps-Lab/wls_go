@@ -1,7 +1,5 @@
 # Config contains appropriate label_names and label_value_attributes.
 ---
-# tls_cert_path: server.crt
-# tls_key_path: server.key
 queries:
     label_name: server
     label_value_attribute: name

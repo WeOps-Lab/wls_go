@@ -20,8 +20,8 @@ type Config struct {
 	Port          string
 	UserName      string
 	Password      string
-	CertPath      string     `yaml:"tls_cert_path"`  // Certificate used for TLS, should include CA chain if its signed.
-	Keypath       string     `yaml:"tls_key_path"`   // Private Key used for TLS
+	CertPath      string     // Certificate used for TLS, should include CA chain if its signed.
+	KeyPath       string     // Private Key used for TLS
 	ListenAddress string     `yaml:"listen_address"` // Address used to listen for scrape requests
 	Queries       MbeanQuery `yaml:"queries"`        // Queries of mBeans the exporter tries to scrape
 }
