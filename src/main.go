@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/benridley/wls_go/exporter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
 )
 
@@ -29,8 +31,14 @@ func main() {
 	password := flag.String("password", getEnv("PASSWORD", ""), "Password for Weblogic Server")
 	certPath := flag.String("cert", "", "Cert file path for Weblogic Server")
 	keyPath := flag.String("key", "", "Key file path for Weblogic Server")
+	printVersion := flag.Bool("version", false, "print version info.")
 
 	flag.Parse()
+
+	if *printVersion {
+		fmt.Print(debug.ReadBuildInfo())
+		os.Exit(0)
+	}
 
 	if *host == "" || *port == "" {
 		log.Fatalf("Missing required parameter: Please provide host and port parameters.")
